@@ -26,6 +26,7 @@ jobs:
         with:
           context: .
           push: false
+          load: true
           tags: app:latest
 
       - name: Trivy Image Scan
