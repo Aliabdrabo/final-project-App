@@ -11,8 +11,8 @@ env:
 
 jobs:
 
-  build-and-scan:
-    name: Build Docker Image & Trivy Scan
+  build-scan-push:
+    name: Build, Scan, and Push Docker Image
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -20,29 +20,6 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: false
-          load: true
-          tags: app:latest
-
-      - name: Trivy Image Scan
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: app:latest
-          severity: HIGH,CRITICAL
-          exit-code: 1
-
-  push-to-ecr:
-    name: Push Image to ECR
-    needs: build-and-scan
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -54,14 +31,23 @@ jobs:
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Tag and Push Image
-        run: |
-          docker tag app:latest ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:${{ env.IMAGE_TAG }}
-          docker push ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:${{ env.IMAGE_TAG }}
+      - name: Build and Push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:${{ env.IMAGE_TAG }}
+
+      - name: Trivy Image Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:${{ env.IMAGE_TAG }}
+          severity: HIGH,CRITICAL
+          exit-code: 1
 
   update-deployment-file:
     name: Update deployment.yaml in another repo
-    needs: push-to-ecr
+    needs: build-scan-push
     runs-on: ubuntu-latest
     steps:
       - name: Checkout target repo
@@ -76,7 +62,6 @@ jobs:
         run: |
           cd manifests
           sed -i "s|image:.*|image: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:${{ env.IMAGE_TAG }}|" deployment.yaml
-
 
       - name: Commit and push changes
         run: |
