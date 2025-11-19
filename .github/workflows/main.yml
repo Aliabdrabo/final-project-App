@@ -56,16 +56,16 @@ jobs:
           repository: Aliabdrabo/finalProject-manifests
           ref: main
           token: ${{ secrets.REPO_TOKEN }}
-          path: manifests
+          path: repo
 
       - name: Update image version in deployment.yaml
         run: |
-          cd manifests
-          sed -i "s|image:.*|image: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:${{ env.IMAGE_TAG }}|" deployment.yaml
+          cd repo/manifests/overlays/prod
+          sed -i "s|image:.*|image: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:${{ env.IMAGE_TAG }}|" image-patch.yaml
 
       - name: Commit and push changes
         run: |
-          cd manifests
+          cd repo/
           git config user.name "Aliabdrabo"
           git config user.email "aliabdrabu78@gmail.com"
           git add .
